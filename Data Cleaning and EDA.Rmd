@@ -11,10 +11,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(tidyverse)
+library(TTR)
 ```
 
 
 ```{r}
+# Setting working directory
+setwd("/Users/emiliodifilippantonio/Desktop/Data Science/Data Science Working Directory")
+
 # Loading in the data set
 high <- read_csv("ABS_High_Volume_Weekly.csv")
 mid <- read_csv("ABS_Medium_Volume_Weekly.csv")
@@ -85,7 +89,7 @@ highCase <- mutate(highCase, week_50 = week_50 / bottles_per_case)
 highCase <- mutate(highCase, week_51 = week_51 / bottles_per_case)
 highCase <- mutate(highCase, week_52 = week_52 / bottles_per_case)
 highCase <- mutate(highCase, week_52 = week_52 / bottles_per_case)
-highCase <- mutate(lowCase, week_53 = week_53 / bottles_per_case)
+highCase <- mutate(highCase, week_53 = week_53 / bottles_per_case)
 highCase <- mutate(highCase, total = total / bottles_per_case)
 
 midCase <- mutate(mid, week_1 = week_1 / bottles_per_case)
@@ -141,7 +145,7 @@ midCase <- mutate(midCase, week_50 = week_50 / bottles_per_case)
 midCase <- mutate(midCase, week_51 = week_51 / bottles_per_case)
 midCase <- mutate(midCase, week_52 = week_52 / bottles_per_case)
 midCase <- mutate(midCase, week_52 = week_52 / bottles_per_case)
-midCase <- mutate(lowCase, week_53 = week_53 / bottles_per_case)
+midCase <- mutate(midCase, week_53 = week_53 / bottles_per_case)
 midCase <- mutate(midCase, total = total / bottles_per_case)
 
 lowCase <- mutate(low, week_1 = week_1 / bottles_per_case)
@@ -218,7 +222,6 @@ bound$volume <- as_factor(bound$volume)
 levels(bound$volume) <- c("high", "medium", "low")
 ```
 
-
 The cleaning is finished. Time for EDA.
 
 ```{r}
@@ -242,15 +245,17 @@ This graph is much easier to read and tells us that the median number of cases s
 Let's break this data down.
 
 ```{r}
-# Making a histgram showing sales from each store
-ggplot(bound_noOut, aes(total)) +
+# Making a histogram showing sales from each store
+ggplot(bound, aes(total)) +
   geom_histogram() +
-  facet_wrap(vars(bound_noOut$volume), scales = "free_y") +
+  facet_wrap(vars(bound$volume), scales = "fixed") +
   labs(
-    title = "Frequency of total sales in cases of product in 2024 by store volume",
+    title = "Frequency of total sales in cases of product\nin 2024 by store volume",
     x = "Store Sales Volume",
     y = "Frequency"
-  )
+  ) +
+  xlim(0, 60) +
+  ylim(0, 50)
 ```
 
 Clearly, something is wrong. I have looked over my code several times but cannot find the mistake.
@@ -470,7 +475,7 @@ week53 <- mutate(week53, week = 53)
 week53 <- week53 |> rename(sales = week_53)
 
 total <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, total, volume)
-total <- mutate(total, week = total)
+total <- mutate(total, week = 0)
 total <- total |> rename(sales = total)
 ```
 
@@ -479,10 +484,56 @@ total <- total |> rename(sales = total)
 sales_by_week <- rbind(week1, week2, week3, week4, week5, week6, week7, week8, week9, week10, week11, week12, week13, week14, week15, week16, week17, week18, week19, week20, week21, week22, week23, week24, week25, week26, week27, week28, week29, week30, week31, week32, week33, week34, week35, week36, week37, week38, week39, week40, week41, week42, week43, week44, week45, week46, week47, week48, week49, week50, week51, week52, week53, total)
 ```
 
-
 ```{r}
-average_by_week <- sales_by_week |> group_by(week) |> summarize(average = mean(sales))
+# Finding the average number of cases of product sold each week by store volume
+average_by_week <- sales_by_week |> group_by(week, volume) |> summarize(average = mean(sales))
+
+# Making the data set without the total
+average_by_week_no_total <- average_by_week[4:162,]
 ```
 
+```{r}
+# Graphing the data set we just created
+ggplot(average_by_week_no_total, aes(x = week, y = average)) +
+  geom_line() +
+  facet_wrap(average_by_week_no_total$volume)
+```
 
+The sales seem to spike at points, and at the end of the year, they plummet for a week, but other than that, the data seems pretty stable. It should be usable for an algorithm.
 
+Let's visualize the data together.
+
+```{r}
+# Creating the same graph, but using a color key instead of facet wrapping
+ggplot(average_by_week_no_total, aes(x = week, y = average, color = volume)) +
+  geom_line()
+```
+
+Once again, the data seems pretty stable.
+
+```{r}
+# Creating a new data set
+just_sales <- bound[, 5:57]
+
+# Combining the columns of the data set
+just_sales_condensed <- c(just_sales$week_1, just_sales$week_2, just_sales$week_3, just_sales$week_4, just_sales$week_5, just_sales$week_6, just_sales$week_7, just_sales$week_8, just_sales$week_9, just_sales$week_10, just_sales$week_11, just_sales$week_12, just_sales$week_13, just_sales$week_14, just_sales$week_15, just_sales$week_16, just_sales$week_17, just_sales$week_18, just_sales$week_19, just_sales$week_20, just_sales$week_21, just_sales$week_22, just_sales$week_23, just_sales$week_24, just_sales$week_25, just_sales$week_26, just_sales$week_27, just_sales$week_28, just_sales$week_29, just_sales$week_30, just_sales$week_31, just_sales$week_32, just_sales$week_33, just_sales$week_34, just_sales$week_35, just_sales$week_36, just_sales$week_37, just_sales$week_38, just_sales$week_39, just_sales$week_40, just_sales$week_41, just_sales$week_42, just_sales$week_43, just_sales$week_44, just_sales$week_45, just_sales$week_46, just_sales$week_47, just_sales$week_48, just_sales$week_49, just_sales$week_50, just_sales$week_51, just_sales$week_52, just_sales$week_53)
+```
+
+```{r}
+# Finding the moving average
+moving_avg <- EMA(just_sales_condensed, 3)
+```
+
+```{r}
+# Separating the values into a data frame
+moving_avg_framed <- data.frame(moving_avg)
+```
+
+```{r}
+# Creating a column in the just_sales data set that is a vector containing all previous sales
+just_sales_plus <- mutate(just_sales, vector = week_1)
+
+just_sales_plus$vector <- cbind(c(just_sales_plus$week_1, just_sales_plus$week_2))
+```
+
+Once again, the code isn't working properly, but I have fixed several other issues. I will consult my colleagues about these issues.

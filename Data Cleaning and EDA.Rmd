@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(TTR)
+library(data.table)
 ```
 
 
@@ -237,7 +238,8 @@ bound_noOut <- filter(bound, total <= 25)
 
 # Remaking the visualization
 ggplot(bound_noOut, aes(y = total)) +
-  geom_boxplot()
+  geom_boxplot() +
+  labs(title = "Boxplot of the Number of Cases Sold of Each Product")
 ```
 
 This graph is much easier to read and tells us that the median number of cases sold of a product in 2024 is about 1, with a heavy rightwards skew that includes some heavy outliers (the ones seen in the previous visualization).
@@ -496,7 +498,10 @@ average_by_week_no_total <- average_by_week[4:162,]
 # Graphing the data set we just created
 ggplot(average_by_week_no_total, aes(x = week, y = average)) +
   geom_line() +
-  facet_wrap(average_by_week_no_total$volume)
+  facet_wrap(average_by_week_no_total$volume) +
+  labs(title = "Average Number of Cases Sold for\nEach Product by Week and Store Volume",
+       x = "Week",
+       y = "Average Number of Cases Sold\nfor Each Product")
 ```
 
 The sales seem to spike at points, and at the end of the year, they plummet for a week, but other than that, the data seems pretty stable. It should be usable for an algorithm.
@@ -520,20 +525,34 @@ just_sales_condensed <- c(just_sales$week_1, just_sales$week_2, just_sales$week_
 ```
 
 ```{r}
-# Finding the moving average
-moving_avg <- EMA(just_sales_condensed, 3)
+# Transposing sales to run it through the EMA function
+wide_sales <- transpose(just_sales)
+wide_sales <- data.frame(wide_sales)
 ```
 
 ```{r}
-# Separating the values into a data frame
-moving_avg_framed <- data.frame(moving_avg)
+# Calculating the EMA of every column
+exp_mov_avg <- wide_sales
+
+for (i in 1:ncol(wide_sales)) {
+  obj <- EMA(wide_sales[, i], 3)
+  exp_mov_avg[, i] <- obj
+}
+
+# Transposing the output
+exp_mov_avg <- transpose(exp_mov_avg)
 ```
 
 ```{r}
-# Creating a column in the just_sales data set that is a vector containing all previous sales
-just_sales_plus <- mutate(just_sales, vector = week_1)
+# Recreating the bound data set
+EMA_plus <- bound
 
-just_sales_plus$vector <- cbind(c(just_sales_plus$week_1, just_sales_plus$week_2))
+# Replacing the weekly sales with the moving average
+EMA_plus[, 5:57] <- exp_mov_avg
 ```
 
-Once again, the code isn't working properly, but I have fixed several other issues. I will consult my colleagues about these issues.
+I will find the 5- and 7- week exponential moving averages for the sales, the 3-, 5-, and 7-week unweighted moving averages, and the 3-, 5-, and 7-week weighted moving averages for a weighting that I will create.
+
+I will then test these to determine which most closely align with actual sales, but I will also favor algorithms that are fairly steady, as high responsiveness to recent changes may be negative.
+
+I may use different algorithms for different sales volumes. For example, I may look at the standard deviation of weekly sales for a product and use that to determine how long of a time frame to use for the moving average. More volatile sales will warrant longer time frames to ensure that the predicted sales is relatively close to average sales, while less volatile sales will allow for shorter time frames that are more responsive to trends in sales without the risk of excessively low or high reorder quantities.

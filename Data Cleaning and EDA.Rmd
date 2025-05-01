@@ -532,23 +532,138 @@ wide_sales <- data.frame(wide_sales)
 
 ```{r}
 # Calculating the EMA of every column
-exp_mov_avg <- wide_sales
+simp_mov_avg1 <- wide_sales
 
 for (i in 1:ncol(wide_sales)) {
-  obj <- EMA(wide_sales[, i], 3)
-  exp_mov_avg[, i] <- obj
+  obj <- SMA(wide_sales[, i], 3)
+  simp_mov_avg1[, i] <- obj
 }
 
 # Transposing the output
-exp_mov_avg <- transpose(exp_mov_avg)
+simp_mov_avg1 <- transpose(simp_mov_avg1)
 ```
 
 ```{r}
 # Recreating the bound data set
-EMA_plus <- bound
+SMA1 <- bound
 
 # Replacing the weekly sales with the moving average
-EMA_plus[, 5:57] <- exp_mov_avg
+SMA1[, 5:57] <- simp_mov_avg1
+```
+
+
+
+```{r}
+# Calculating the EMA of every column
+simp_mov_avg2 <- wide_sales
+
+for (i in 1:ncol(wide_sales)) {
+  obj <- SMA(wide_sales[, i], 3)
+  simp_mov_avg2[, i] <- obj
+}
+
+# Transposing the output
+simp_mov_avg2 <- transpose(simp_mov_avg2)
+```
+
+```{r}
+# Recreating the bound data set
+SMA2 <- bound
+
+# Replacing the weekly sales with the moving average
+SMA2[, 5:57] <- simp_mov_avg2
+```
+
+
+
+```{r}
+# Calculating the EMA of every column
+simp_mov_avg3 <- wide_sales
+
+for (i in 1:ncol(wide_sales)) {
+  obj <- SMA(wide_sales[, i], 3)
+  simp_mov_avg3[, i] <- obj
+}
+
+# Transposing the output
+simp_mov_avg3 <- transpose(simp_mov_avg3)
+```
+
+```{r}
+# Recreating the bound data set
+SMA3 <- bound
+
+# Replacing the weekly sales with the moving average
+SMA3[, 5:57] <- simp_mov_avg3
+```
+
+
+
+```{r}
+# Calculating the EMA of every column
+exp_mov_avg1 <- wide_sales
+
+for (i in 1:ncol(wide_sales)) {
+  obj <- EMA(wide_sales[, i], 3)
+  exp_mov_avg1[, i] <- obj
+}
+
+# Transposing the output
+exp_mov_avg1 <- transpose(exp_mov_avg1)
+```
+
+```{r}
+# Recreating the bound data set
+EMA1 <- bound
+
+# Replacing the weekly sales with the moving average
+EMA1[, 5:57] <- exp_mov_avg1
+```
+
+
+
+```{r}
+# Calculating the EMA of every column
+exp_mov_avg2 <- wide_sales
+
+for (i in 1:ncol(wide_sales)) {
+  obj <- EMA(wide_sales[, i], 5)
+  exp_mov_avg2[, i] <- obj
+}
+
+# Transposing the output
+exp_mov_avg2 <- transpose(exp_mov_avg2)
+```
+
+```{r}
+# Recreating the bound data set
+EMA2 <- bound
+
+# Replacing the weekly sales with the moving average
+EMA2[, 5:57] <- exp_mov_avg2
+```
+
+
+
+```{r}
+# Calculating the EMA of every column
+exp_mov_avg3 <- wide_sales
+
+for (i in 1:ncol(wide_sales)) {
+  obj <- EMA(wide_sales[, i], 7)
+  exp_mov_avg3[, i] <- obj
+}
+
+# Transposing the output
+exp_mov_avg3 <- transpose(exp_mov_avg3)
+```
+
+```{r}
+# Recreating the bound data set
+EMA3 <- bound
+
+# Replacing the weekly sales with the moving average
+EMA3[, 5:57] <- exp_mov_avg3
 ```
 
 I will find the 5- and 7- week exponential moving averages for the sales, the 3-, 5-, and 7-week unweighted moving averages, and the 3-, 5-, and 7-week weighted moving averages for a weighting that I will create.
@@ -556,3 +671,184 @@ I will find the 5- and 7- week exponential moving averages for the sales, the 3-
 I will then test these to determine which most closely align with actual sales, but I will also favor algorithms that are fairly steady, as high responsiveness to recent changes may be negative.
 
 I may use different algorithms for different sales volumes. For example, I may look at the standard deviation of weekly sales for a product and use that to determine how long of a time frame to use for the moving average. More volatile sales will warrant longer time frames to ensure that the predicted sales is relatively close to average sales, while less volatile sales will allow for shorter time frames that are more responsive to trends in sales without the risk of excessively low or high reorder quantities.
+
+```{r}
+# Finding the residual between moving average of sales and actual sales the following week
+res_sma1 <- just_sales
+res_sma1 <- res_sma1[, 1:(ncol(res_sma1) - 3)]
+
+for (i in 1:(ncol(just_sales) - 3)) {
+  obj <- just_sales[i, 4:ncol(just_sales)] - simp_mov_avg1[i, 3:(ncol(simp_mov_avg1) - 1)]
+  res_sma1[i, 1:ncol(res_sma1)] <- obj
+}
+
+# Saving the residuals in the original data set
+RSMA1 <- bound
+RSMA1[, 5:7] <- NA
+RSMA1[, 8:57] <- res_sma1
+```
+
+
+
+```{r}
+# Finding the residual between moving average of sales and actual sales the following week
+res_sma2 <- just_sales
+res_sma2 <- res_sma2[, 1:(ncol(res_sma2) - 5)]
+
+for (i in 1:(ncol(just_sales) - 5)) {
+  obj <- just_sales[i, 6:ncol(just_sales)] - simp_mov_avg2[i, 5:(ncol(simp_mov_avg2) - 1)]
+  res_sma2[i, 1:ncol(res_sma2)] <- obj
+}
+
+# Saving the residuals in the original data set
+RSMA2 <- bound
+RSMA2[, 5:9] <- NA
+RSMA2[, 10:57] <- res_sma2
+```
+
+
+
+```{r}
+# Finding the residual between moving average of sales and actual sales the following week
+res_sma3 <- just_sales
+res_sma3 <- res_sma3[, 1:(ncol(res_sma3) - 7)]
+
+for (i in 1:(ncol(just_sales) - 7)) {
+  obj <- just_sales[i, 8:ncol(just_sales)] - simp_mov_avg3[i, 7:(ncol(simp_mov_avg3) - 1)]
+  res_sma3[i, 1:ncol(res_sma3)] <- obj
+}
+
+# Saving the residuals in the original data set
+RSMA3 <- bound
+RSMA3[, 5:11] <- NA
+RSMA3[, 12:57] <- res_sma3
+```
+
+
+
+```{r}
+# Finding the residual between moving average of sales and actual sales the following week
+res_ema1 <- just_sales
+res_ema1 <- res_ema1[, 1:(ncol(res_ema1) - 3)]
+
+for (i in 1:(ncol(just_sales) - 3)) {
+  obj <- just_sales[i, 4:ncol(just_sales)] - exp_mov_avg1[i, 3:(ncol(exp_mov_avg1) - 1)]
+  res_ema1[i, 1:ncol(res_ema1)] <- obj
+}
+
+# Saving the residuals in the original data set
+REMA1 <- bound
+REMA1[, 5:7] <- NA
+REMA1[, 8:57] <- res_ema1
+```
+
+
+
+```{r}
+# Finding the residual between moving average of sales and actual sales the following week
+res_ema2 <- just_sales
+res_ema2 <- res_ema2[, 1:(ncol(res_ema2) - 5)]
+
+for (i in 1:(ncol(just_sales) - 5)) {
+  obj <- just_sales[i, 6:ncol(just_sales)] - exp_mov_avg2[i, 5:(ncol(exp_mov_avg2) - 1)]
+  res_ema2[i, 1:ncol(res_ema2)] <- obj
+}
+
+# Saving the residuals in the original data set
+REMA2 <- bound
+REMA2[, 5:9] <- NA
+REMA2[, 10:57] <- res_ema2
+```
+
+
+
+```{r}
+# Finding the residual between moving average of sales and actual sales the following week
+res_ema3 <- just_sales
+res_ema3 <- res_ema3[, 1:(ncol(res_ema3) - 7)]
+
+for (i in 1:(ncol(just_sales) - 7)) {
+  obj <- just_sales[i, 8:ncol(just_sales)] - exp_mov_avg3[i, 7:(ncol(exp_mov_avg3) - 1)]
+  res_ema3[i, 1:ncol(res_ema3)] <- obj
+}
+
+# Saving the residuals in the original data set
+REMA3 <- bound
+REMA3[, 5:11] <- NA
+REMA3[, 12:57] <- res_ema3
+```
+
+
+
+```{r}
+# Turning the residuals data into a time series
+ts_res_ema1 <- ts(res_ema1, start = (0))
+ts_res_ema2 <- ts(res_ema2, start = (0))
+
+# Plotting the time series
+plot(ts_res_ema1[1,])
+```
+
+```{r}
+# Re-labeling the columns in the REMA1 dataset as dates
+colnames(REMA1)[5:57] <- c('2024-01-01', '2024-01-08', '2024-01-15', '2024-01-22', '2024-01-29', '2024-02-05', '2024-02-12', '2024-02-19', '2024-02-26', '2024-03-04', '2024-03-11', '2024-03-18', '2024-03-25', '2024-04-01', '2024-04-08', '2024-04-15', '2024-04-22', '2024-04-29', '2024-05-06', '2024-05-13', '2024-05-20', '2024-05-27', '2024-06-03', '2024-06-10', '2024-06-17', '2024-06-24', '2024-07-01', '2024-07-08', '2024-07-15', '2024-07-22', '2024-07-29', '2024-08-05', '2024-08-12', '2024-08-19', '2024-08-26', '2024-09-02', '2024-09-09', '2024-09-16', '2024-09-23', '2024-09-30', '2024-10-07', '2024-10-14', '2024-10-21', '2024-10-28', '2024-11-04', '2024-11-11', '2024-11-18', '2024-11-25', '2024-12-02', '2024-12-09', '2024-12-16', '2024-12-23', '2024-12-30')
+```
+
+```{r}
+# Creating a new data frame to store the exponential moving average in long format
+ema1_long <- data.frame(1, 2)
+colnames(ema1_long) <- c("EMA", "Week")
+# Creating a temporary data frame to store the data as it transitions and putting the dates into the data frame so that they go with the data into the new data frame
+OBJ <- data.frame(1:53, colnames(REMA1[5:57]))
+colnames(OBJ) <- c("EMA", "Week")
+
+# Converting the exponential moving average data frame into long format with a column for the dates
+for (i in 1:ncol(exp_mov_avg1_long)) {
+  OBJ[, 1] <- exp_mov_avg1_long[, i]
+  ema1_long <- rbind(ema1_long, OBJ)
+}
+
+# Removing the first row, which I put to initially create the data frame
+ema1_long <- ema1_long[2:nrow(ema1_long),]
+```
+
+
+```{r}
+# Graphing residuals as boxplots
+ggplot(REMA1, aes(x = colnames(REMA1[5:57]), y = REMA1[5:57])) +
+  geom_point()
+```
+
+```{r}
+melted <- reshape2::melt(REMA1, id.vars = NULL, measure.vars = '2024-01-01')
+
+ggplot() + 
+geom_boxplot(aes(x = melted$variable, y = REMA1$value))
+
+
+```
+
+```{r}
+# creating a dataframe 
+test_data <- data.frame(col1=rep(1: 5, each=2), 
+                          col2=1: 10, 
+                          col3=11: 20, 
+                          col4=21: 30) 
+  
+  
+# creating the modified dataframe 
+test_melt <- melt(test_data, id.vars='col1',  
+                  measure.vars=c('col2', 'col3')) 
+  
+# creating a plot 
+ggplot(test_melt) + 
+geom_boxplot(aes(x=col1, y=value, color=variable))
+```
+
+
+
+
+
+
+
+

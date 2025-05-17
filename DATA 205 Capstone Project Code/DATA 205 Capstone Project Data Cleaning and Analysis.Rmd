@@ -1,0 +1,447 @@
+---
+title: "DATA 205 Capstone Project Data Cleaning and EDA"
+author: "Emilio Difilippantonio"
+date: "2025-05-16"
+output: html_document
+---
+
+Welcome to my project. This project is done in conjuntion with the Montgomery County Alcohol Beverage Services. The goal of the project is to improve their reordering algorithm to improve accuracy and reduce lost revenue in the form of wasted goods (overstocking) or missed sales (understocking).
+
+This file contains only the primary data cleaning and exploratory data analysis. See the other file in my GitHub repository for the data analysis. There is also a data set in the GitHub repo that can be used with the data analysis. That is the data set that we will be creating and analyzing in this file.
+
+We have three data sets provided to us by the ABS: one from a high-volume store (\$6+ million in annual revenue), one from a medium-volume store(\$3-\$6 million in annual revenue), and one from a low-volume store(\$3 or less in annual revenue). Each data set has 500 rows and 17 columns, and contains weekly sales data from 2024. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First, let's load the necessary packages
+
+```{r}
+# Loading necessary libraries
+library(tidyverse)
+library(TTR)
+library(data.table)
+library(gridExtra)
+library(grid)
+library(ggplot2)
+library(lattice)
+```
+
+Next, let's load in the data. There are three data sets to load in.
+
+```{r}
+# Setting working directory
+setwd("/Users/emiliodifilippantonio/Desktop/Data Science/Data Science Working Directory")
+
+# Loading in the data set
+high <- read_csv("ABS_High_Volume_Weekly.csv")
+mid <- read_csv("ABS_Medium_Volume_Weekly.csv")
+low <- read_csv("ABS_Low_Volume_Weekly.csv")
+```
+
+Let's rename the columns of the data set to be lowercase and have no spaces. Standardizing the names of the columns will reduce complications later on when using the column names.
+
+```{r}
+# Renaming the columns
+colnames(high) <- c("item_id", "description", "bottles_per_case", "cost_per_bottle", "week_1", "week_2", "week_3", "week_4", "week_5", "week_6", "week_7", "week_8", "week_9", "week_10", "week_11", "week_12", "week_13", "week_14", "week_15", "week_16", "week_17", "week_18", "week_19", "week_20", "week_21", "week_22", "week_23", "week_24", "week_25", "week_26", "week_27", "week_28", "week_29", "week_30", "week_31", "week_32", "week_33", "week_34", "week_35", "week_36",  "week_37", "week_38", "week_39", "week_40", "week_41", "week_42", "week_43", "week_44", "week_45", "week_46", "week_47", "week_48", "week_49", "week_50", "week_51", "week_52", "week_53", "total")
+
+colnames(mid) <- c("item_id", "description", "bottles_per_case", "cost_per_bottle", "week_1", "week_2", "week_3", "week_4", "week_5", "week_6", "week_7", "week_8", "week_9", "week_10", "week_11", "week_12", "week_13", "week_14", "week_15", "week_16", "week_17", "week_18", "week_19", "week_20", "week_21", "week_22", "week_23", "week_24", "week_25", "week_26", "week_27", "week_28", "week_29", "week_30", "week_31", "week_32", "week_33", "week_34", "week_35", "week_36",  "week_37", "week_38", "week_39", "week_40", "week_41", "week_42", "week_43", "week_44", "week_45", "week_46", "week_47", "week_48", "week_49", "week_50", "week_51", "week_52", "week_53", "total")
+
+colnames(low) <- c("item_id", "description", "bottles_per_case", "cost_per_bottle", "week_1", "week_2", "week_3", "week_4", "week_5", "week_6", "week_7", "week_8", "week_9", "week_10", "week_11", "week_12", "week_13", "week_14", "week_15", "week_16", "week_17", "week_18", "week_19", "week_20", "week_21", "week_22", "week_23", "week_24", "week_25", "week_26", "week_27", "week_28", "week_29", "week_30", "week_31", "week_32", "week_33", "week_34", "week_35", "week_36",  "week_37", "week_38", "week_39", "week_40", "week_41", "week_42", "week_43", "week_44", "week_45", "week_46", "week_47", "week_48", "week_49", "week_50", "week_51", "week_52", "week_53", "total")
+```
+
+In order to perform a more useful analysis, I want to convert the sales from bottles to cases. Since the products are reordered in cases of product, not bottles, it's more helpful to look at how many cases of each product are sold over a given amount of time because that directly translates to the amount of cases reordered.
+
+```{r}
+# Creating new datasets where the sales are in cases, not bottles
+highCase <- high
+for (row in 1:nrow(highCase)) {
+  for (col in 5:58) {
+    highCase[row, col] <- highCase[row, col] / highCase[row, 3]
+  }
+}
+
+midCase <- mid
+for (row in 1:nrow(midCase)) {
+  for (col in 5:58) {
+    midCase[row, col] <- midCase[row, col] / midCase[row, 3]
+  }
+}
+
+lowCase <- low
+for (row in 1:nrow(lowCase)) {
+  for (col in 5:58) {
+    lowCase[row, col] <- lowCase[row, col] / lowCase[row, 3]
+  }
+}
+```
+
+I will also be combining the three data sets, but before I do that, I will be adding a column to each of the data sets indicating whether they belong to the high volume, medium volume, or low volume store.
+
+```{r}
+# Adding a variable to indicate store volume (it's redundant in these data set, but when I combine them, it will be useful)
+highCase <- mutate(highCase, volume = "high")
+midCase <- mutate(midCase, volume = "medium")
+lowCase <- mutate(lowCase, volume = "low")
+```
+
+Now I'm combining the data sets. I'm also making sure that the column that I just added is set to be a factor variable.
+
+```{r}
+# Combining all of the data sets
+bound <- bind_rows(highCase, midCase, lowCase)
+
+# Making volume a factor and setting the levels
+bound$volume <- as_factor(bound$volume)
+levels(bound$volume) <- c("high", "medium", "low")
+```
+
+The cleaning is finished. Time for EDA.
+
+First, let's make a histogram showing how many cases of each product were sold in 2024 (the year that the data spans). I had to limit the x-axis on this graph because the tails of the data were way too large.
+
+```{r}
+# Making a histogram showing sales from each store
+ggplot(bound, aes(total, fill = volume)) +
+  geom_histogram() +
+  facet_wrap(vars(bound$volume), scales = "fixed") +
+  labs(
+    title = "Frequency of Total Sales in Cases of Product\nin 2024 by Store Volume",
+    x = "Store Sales Volume",
+    y = "Frequency of Total Sales in Cases of Product"
+  ) +
+  xlim(0, 60) +
+  ylim(0, 50)
+```
+
+This graph shows us that the high volume store has a much greater variability in case of product sold, and overall, sells more cases of each product. The medium volume store peaks at around 10 cases of product sold and fades out to a relatively large tail, though not as large as the tail on the high volume store. The low volume store has a very high peak at around 15 cases of product sold with a smaller tail than the other two stores.
+
+Let's look at the five number summaries (plus mean and variance) of these stores to see if there really is a pattern.
+
+```{r}
+# Creating a five number summary of the sales data in the high volume data set
+five_num_sum_high <- highCase |> summarize(
+  "Minimum" = min(highCase$total),
+  "1st Quartile" = quantile(highCase$total, 0.25),
+  "Median" = quantile(highCase$total, 0.50),
+  "3rd Quartile" = quantile(highCase$total, 0.75),
+  "Maximum" = max(highCase$total),
+  "Mean" = mean(highCase$total),
+  "Variance" = var(highCase$total)
+)
+
+# Printing the five number summary
+five_num_sum_high
+```
+
+```{r}
+# Creating a five number summary of the sales data in the medium volume data set
+five_num_sum_mid <- midCase |> summarize(
+  "Minimum" = min(midCase$total),
+  "1st Quartile" = quantile(midCase$total, 0.25),
+  "Median" = quantile(midCase$total, 0.50),
+  "3rd Quartile" = quantile(midCase$total, 0.75),
+  "Maximum" = max(midCase$total),
+  "Mean" = mean(midCase$total),
+  "Variance" = var(midCase$total)
+)
+
+# Printing the five number summary
+five_num_sum_mid
+```
+
+```{r}
+# Creating a five number summary of the sales data in the medium volume data set
+five_num_sum_low <- lowCase |> summarize(
+  "Minimum" = min(lowCase$total),
+  "1st Quartile" = quantile(lowCase$total, 0.25),
+  "Median" = quantile(lowCase$total, 0.50),
+  "3rd Quartile" = quantile(lowCase$total, 0.75),
+  "Maximum" = max(lowCase$total),
+  "Mean" = mean(lowCase$total),
+  "Variance" = var(lowCase$total)
+)
+
+# Printing the five number summary
+five_num_sum_low
+```
+
+As I suspected, the high volume store has a much greater variance in sales data than the other two store: almost an order of magnitude higher! The medium volume store seems to be centered a bit lower than the low volume store, but it has a larger tail to make up for this.
+
+Let's look at the average cases of each product sold per week for the three locations.
+
+First, we need to do a lot of data manipulation.
+
+```{r}
+# Creating new data sets for sales in each week
+week1 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_1, volume)
+week1 <- mutate(week1, week = 1)
+week1 <- week1 |> rename(sales = week_1)
+
+week2 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_2, volume)
+week2 <- mutate(week2, week = 2)
+week2 <- week2 |> rename(sales = week_2)
+
+week3 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_3, volume)
+week3 <- mutate(week3, week = 3)
+week3 <- week3 |> rename(sales = week_3)
+
+week4 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_4, volume)
+week4 <- mutate(week4, week = 4)
+week4 <- week4 |> rename(sales = week_4)
+
+week5 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_5, volume)
+week5 <- mutate(week5, week = 5)
+week5 <- week5 |> rename(sales = week_5)
+
+week6 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_6, volume)
+week6 <- mutate(week6, week = 6)
+week6 <- week6 |> rename(sales = week_6)
+
+week7 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_7, volume)
+week7 <- mutate(week7, week = 7)
+week7 <- week7 |> rename(sales = week_7)
+
+week8 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_8, volume)
+week8 <- mutate(week8, week = 8)
+week8 <- week8 |> rename(sales = week_8)
+
+week9 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_9, volume)
+week9 <- mutate(week9, week = 9)
+week9 <- week9 |> rename(sales = week_9)
+
+week10 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_10, volume)
+week10 <- mutate(week10, week = 10)
+week10 <- week10 |> rename(sales = week_10)
+
+week11 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_11, volume)
+week11 <- mutate(week11, week = 11)
+week11 <- week11 |> rename(sales = week_11)
+
+week12 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_12, volume)
+week12 <- mutate(week12, week = 12)
+week12 <- week12 |> rename(sales = week_12)
+
+week13 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_13, volume)
+week13 <- mutate(week13, week = 13)
+week13 <- week13 |> rename(sales = week_13)
+
+week14 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_14, volume)
+week14 <- mutate(week14, week = 14)
+week14 <- week14 |> rename(sales = week_14)
+
+week15 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_15, volume)
+week15 <- mutate(week15, week = 15)
+week15 <- week15 |> rename(sales = week_15)
+
+week16 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_16, volume)
+week16 <- mutate(week16, week = 16)
+week16 <- week16 |> rename(sales = week_16)
+
+week17 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_17, volume)
+week17 <- mutate(week17, week = 17)
+week17 <- week17 |> rename(sales = week_17)
+
+week18 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_18, volume)
+week18 <- mutate(week18, week = 18)
+week18 <- week18 |> rename(sales = week_18)
+
+week19 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_19, volume)
+week19 <- mutate(week19, week = 19)
+week19 <- week19 |> rename(sales = week_19)
+
+week20 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_20, volume)
+week20 <- mutate(week20, week = 20)
+week20 <- week20 |> rename(sales = week_20)
+
+week21 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_21, volume)
+week21 <- mutate(week21, week = 21)
+week21 <- week21 |> rename(sales = week_21)
+
+week22 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_22, volume)
+week22 <- mutate(week22, week = 22)
+week22 <- week22 |> rename(sales = week_22)
+
+week23 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_23, volume)
+week23 <- mutate(week23, week = 23)
+week23 <- week23 |> rename(sales = week_23)
+
+week24 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_24, volume)
+week24 <- mutate(week24, week = 24)
+week24 <- week24 |> rename(sales = week_24)
+
+week25 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_25, volume)
+week25 <- mutate(week25, week = 25)
+week25 <- week25 |> rename(sales = week_25)
+
+week26 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_26, volume)
+week26 <- mutate(week26, week = 26)
+week26 <- week26 |> rename(sales = week_26)
+
+week27 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_27, volume)
+week27 <- mutate(week27, week = 27)
+week27 <- week27 |> rename(sales = week_27)
+
+week28 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_28, volume)
+week28 <- mutate(week28, week = 28)
+week28 <- week28 |> rename(sales = week_28)
+
+week29 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_29, volume)
+week29 <- mutate(week29, week = 29)
+week29 <- week29 |> rename(sales = week_29)
+
+week30 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_30, volume)
+week30 <- mutate(week30, week = 30)
+week30 <- week30 |> rename(sales = week_30)
+
+week31 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_31, volume)
+week31 <- mutate(week31, week = 31)
+week31 <- week31 |> rename(sales = week_31)
+
+week32 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_32, volume)
+week32 <- mutate(week32, week = 32)
+week32 <- week32 |> rename(sales = week_32)
+
+week33 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_33, volume)
+week33 <- mutate(week33, week = 33)
+week33 <- week33 |> rename(sales = week_33)
+
+week34 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_34, volume)
+week34 <- mutate(week34, week = 34)
+week34 <- week34 |> rename(sales = week_34)
+
+week35 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_35, volume)
+week35 <- mutate(week35, week = 35)
+week35 <- week35 |> rename(sales = week_35)
+
+week36 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_36, volume)
+week36 <- mutate(week36, week = 36)
+week36 <- week36 |> rename(sales = week_36)
+
+week37 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_37, volume)
+week37 <- mutate(week37, week = 37)
+week37 <- week37 |> rename(sales = week_37)
+
+week38 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_38, volume)
+week38 <- mutate(week38, week = 38)
+week38 <- week38 |> rename(sales = week_38)
+
+week39 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_39, volume)
+week39 <- mutate(week39, week = 39)
+week39 <- week39 |> rename(sales = week_39)
+
+week40 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_40, volume)
+week40 <- mutate(week40, week = 40)
+week40 <- week40 |> rename(sales = week_40)
+
+week41 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_41, volume)
+week41 <- mutate(week41, week = 41)
+week41 <- week41 |> rename(sales = week_41)
+
+week42 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_42, volume)
+week42 <- mutate(week42, week = 42)
+week42 <- week42 |> rename(sales = week_42)
+
+week43 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_43, volume)
+week43 <- mutate(week43, week = 43)
+week43 <- week43 |> rename(sales = week_43)
+
+week44 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_44, volume)
+week44 <- mutate(week44, week = 44)
+week44 <- week44 |> rename(sales = week_44)
+
+week45 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_45, volume)
+week45 <- mutate(week45, week = 45)
+week45 <- week45 |> rename(sales = week_45)
+
+week46 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_46, volume)
+week46 <- mutate(week46, week = 46)
+week46 <- week46 |> rename(sales = week_46)
+
+week47 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_47, volume)
+week47 <- mutate(week47, week = 47)
+week47 <- week47 |> rename(sales = week_47)
+
+week48 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_48, volume)
+week48 <- mutate(week48, week = 48)
+week48 <- week48 |> rename(sales = week_48)
+
+week49 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_49, volume)
+week49 <- mutate(week49, week = 49)
+week49 <- week49 |> rename(sales = week_49)
+
+week50 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_50, volume)
+week50 <- mutate(week50, week = 50)
+week50 <- week50 |> rename(sales = week_50)
+
+week51 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_51, volume)
+week51 <- mutate(week51, week = 51)
+week51 <- week51 |> rename(sales = week_51)
+
+week52 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_52, volume)
+week52 <- mutate(week52, week = 52)
+week52 <- week52 |> rename(sales = week_52)
+
+week53 <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, week_53, volume)
+week53 <- mutate(week53, week = 53)
+week53 <- week53 |> rename(sales = week_53)
+
+total <- bound |> select(item_id, description, bottles_per_case, cost_per_bottle, total, volume)
+total <- mutate(total, week = 0)
+total <- total |> rename(sales = total)
+```
+
+Next, we need to combine these new data sets.
+
+```{r}
+# Combining the newly formed data sets
+sales_by_week <- rbind(week1, week2, week3, week4, week5, week6, week7, week8, week9, week10, week11, week12, week13, week14, week15, week16, week17, week18, week19, week20, week21, week22, week23, week24, week25, week26, week27, week28, week29, week30, week31, week32, week33, week34, week35, week36, week37, week38, week39, week40, week41, week42, week43, week44, week45, week46, week47, week48, week49, week50, week51, week52, week53, total)
+```
+
+Let's look at the grouped mean sales per week in cases according to store volume.
+
+```{r}
+# Finding the average number of cases of product sold each week by store volume
+average_by_week <- sales_by_week |> group_by(week, volume) |> summarize(average = mean(sales))
+
+# Making the data set without the total
+average_by_week_no_total <- average_by_week[4:162,]
+```
+
+That's a lot of numbers; let's just graph it!
+
+```{r}
+# Graphing the data set we just created
+ggplot(average_by_week_no_total, aes(x = week, y = average)) +
+  geom_line() +
+  facet_wrap(average_by_week_no_total$volume) +
+  labs(title = "Average Number of Cases Sold for\nEach Product by Week and Store Volume",
+       x = "Week",
+       y = "Average Number of Cases Sold\nfor Each Product")
+```
+
+This visualization is helpful, but I feel like it's missing something.........
+
+```{r}
+# Creating the same graph, but using a color key instead of facet wrapping
+ggplot(average_by_week_no_total, aes(x = week, y = average, color = volume)) +
+  geom_line()
+```
+
+There we go! WOW!! The high volume store has a SIGNIFICANTLY higher average amount of cases sold per week. The high volume store's worst week is better than the other two stores' best weeks. The medium and low volume store, however, seem to be neck-and-neck. This medium volume store is likely on the lower end of medium volume stores in terms of sales, while the low volume store is likely on the upper end. However, it is possible that the medium volume store tends to sell more expensive products, but this must be quite pronounced if such similar sales patterns result in different classifications of volume.
+
+Now that we've finished our primary data cleaning and our EDA, let's export the cleaned data set for use in the data analysis markdown file.
+
+```{r}
+# exporting the bound data set
+write.csv(bound, file = "ABS Sales Bound Data Set")
+```
+
+In the next markdown file, we will be clustering the individual products into group based on their sales data over the course of the year. Check out that part of the project to see what happened.
+
+Thank you for viewing this part of the project, and I hope to see you in the next part!
+
+
+
+

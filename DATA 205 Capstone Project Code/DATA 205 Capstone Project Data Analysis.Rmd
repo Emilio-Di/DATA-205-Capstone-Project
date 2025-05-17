@@ -1,0 +1,415 @@
+---
+title: "DATA 205 Capstone Project Data Analysis"
+author: "Emilio Difilippantonio"
+date: "2025-05-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First, I need to load in my data set.
+
+```{r}
+# Setting working directory
+setwd("/Users/emiliodifilippantonio/Desktop/DATA 205/ABS Project")
+
+# Load in the bound data set and the just_sales data set
+bound <- read_csv("ABS Sales Bound Data Set")
+```
+
+Next, I need to load in the necessary packages.
+
+```{r}
+# Load packages
+library(dtwclust)
+library(tidyverse)
+library(ggplot2)
+library(reshape2)
+```
+
+The data set loads in which an extra column, so let's remove it. Next, I'll separate the data set back into three separate data sets.
+
+```{r}
+# Removing the extra column in the bound data set
+bound <- bound[2:ncol(bound)]
+
+# Recreating the data sets from the data cleaning and EDA markdown file
+highCase <- bound |> filter(volume == "high")
+midCase <- bound |> filter(volume == "medium")
+lowCase <- bound |> filter(volume == "low")
+
+# Setting volume to a factored variable
+highCase$volume <- as.factor(highCase$volume)
+midCase$volume <- as.factor(midCase$volume)
+lowCase$volume <- as.factor(lowCase$volume)
+```
+
+Now I'll trim down the data sets to put them through the tsclust() function.
+
+```{r}
+# Reducing the highCase, midCase, and lowCase data sets by 100
+highCase1 <- highCase[order(highCase$total),]
+highCase1 <- highCase1[101:500,]
+highCase1[, 59] <- "high"
+
+midCase1 <- midCase[order(midCase$total),]
+midCase1 <- midCase1[101:500,]
+midCase1[, 59] <- "medium"
+
+lowCase1 <- lowCase[order(lowCase$total),]
+lowCase1 <- lowCase1[101:500,]
+lowCase1[, 59] <- "low"
+```
+
+Let's recombine the data set and create another data set with just the sales. We will use this to create a time series.
+
+```{r}
+# Combining all of the data sets
+bound1 <- bind_rows(highCase1, midCase1, lowCase1)
+
+# Making volume a factor and setting the levels
+bound1$volume <- as_factor(bound1$volume)
+levels(bound1$volume) <- c("high", "medium", "low")
+
+# Creating another just_sales
+just_sales1 <- bound1[5:57]
+just_sales1_ts <- ts(just_sales1)
+```
+
+Let's remove any rows where the week with the minimum sales is equal to the week with the maximum sales (these products sell the same amount every week - usually 0 cases - so they aren't useful and they interfere with the system).
+
+Next, we'll normalize the data. If we cluster the data using the original sales, the clusters will be based mainly on the quantity of sales. In order to ensure that the clusters are based on sales trends, we will normalize the sales. We will use min-max normalization to complete this process. Min-max normalization involves putting every value on a scale from 0 to 1 where 0 represents the minimum value (in this case, the minimum sales in a week for a given project) and 1 represents the maximum value (in this case, the maximum sales in a week for a given project).
+
+Lastly, we'll remove any rows that have infinite values in them (there shouldn't be any of those rows given the precatuions we took before, but just in case, I've added the code) and replace any NA values (which, in this case, represent a 0) with 1.
+
+```{r}
+# Creating the normalized data set
+sales_normalized2 <- just_sales1
+
+# Creating a vector to store the index numbers of the rows that need to be removed
+removals <- c()
+
+# Filling the aforementioned vector with 1's and 0's depending on whether to remove the row
+for(i in 1:1200) {
+  min <- min(sales_normalized2[i,])
+  max <- max(sales_normalized2[i,])
+  if (max == min) {
+      removals <- append(removals, 1)
+  } else {
+    removals <- append(removals, 0)
+  }
+}
+
+# Removing said rows from both data sets
+sales_normalized2 <- sales_normalized2[!c(removals),]
+bound1 <- bound1[!c(removals),]
+
+# Normalizing the sales_normalized2 data set
+for(i in 1:nrow(sales_normalized2)) {
+  max <- max(sales_normalized2[i,])
+  min <- min(sales_normalized2[i,])
+  for(j in 1:ncol(sales_normalized2)) {
+    if (sales_normalized2[i, j] == min) {
+      sales_normalized2[i, j] <- sales_normalized2[i, j] + 0.0001
+    }
+    sales_normalized2[i, j] <- (sales_normalized2[i, j] - min) / (max - min) * (1000000)
+  }
+}
+
+# Normalizing the bound1 data set
+for(i in 1:nrow(bound1)) {
+  max <- max(bound1[i, 5:57])
+  min <- min(bound1[i, 5:57])
+  for(j in 5:57) {
+    if (bound1[i, j] == min) {
+      bound1[i, j] <- bound1[i, j] + 0.0001
+    }
+    bound1[i, j] <- (bound1[i, j] - min) / (max - min) * (1000000)
+  }
+}
+
+# Removing rows with infinite values from the data set
+sales_normalized2_cleaned <- sales_normalized2[rowSums(sapply(sales_normalized2, is.infinite)) == 0, ]
+bound1[, (ncol(bound1) + 1)] <- c(1:nrow(bound1))
+bound1_cleaned <- bound1[rowSums(sapply(bound1, is.infinite)) == 0, c(5:57, 60)]
+bound1_cleaned <- bound1 |> filter(bound1$...60 %in% c(bound1_cleaned$...60))
+
+# Replacing NA values with 1
+sales_normalized3 <- sales_normalized2_cleaned
+sales_normalized3[is.na(sales_normalized3)] <- 1
+bound2 <- bound1_cleaned
+bound2[is.na(bound2)] <- 1
+
+# Converting the data set to a time series
+sales_normalized_ts3 <- ts(sales_normalized3)
+```
+
+Next, let's make the clusters. I will make 4 groups of clusters: one with k = 10 clusters, one with k = 25 clusters, one with k = 50 clusters, and one with k = 100 clusters. I will set the seed and use the tsclust() function to do this.
+
+If you are running this code, you have to be patient. Each cluster takes about 15 - 20 minutes to run, so, in all, this will take over an hour. At least, that's how long it took on my computer.
+
+```{r}
+# Setting the seed for reproducability (the tsclust() function requires a random seed to create the clusters)
+set.seed(9999)
+
+# making cluster group k = 10
+cluster_k10 <- tsclust(sales_normalized_ts3, type = "partitional", k = 10)
+
+# Making cluster group k = 25
+cluster_k25 <- tsclust(sales_normalized_ts3, type = "partitional", k = 25)
+
+# Making cluster group k = 50
+cluster_k50 <- tsclust(sales_normalized_ts3, type = "partitional", k = 50)
+
+# Making cluster group k = 100
+cluster_k100 <- tsclust(sales_normalized_ts3, type = "partitional", k = 100)
+```
+
+Next, let's make data frames for each of the clusters that we just made. These data frames will contain a column indicating the cluster to which the product belongs.
+
+```{r}
+# clustering the data based on cluster k = 10
+sales_normalized_k10 <- mutate(sales_normalized2_cleaned, cluster_k10 = cluster_k10@cluster)
+sales_normalized_k10_ts <- ts(sales_normalized_k10)
+
+# clustering the data based on cluster k = 25
+sales_normalized_k25 <- mutate(sales_normalized2_cleaned, cluster_k25 = cluster_k25@cluster)
+sales_normalized_k25_ts <- ts(sales_normalized_k25)
+
+# clustering the data based on cluster k = 50
+sales_normalized_k50 <- mutate(sales_normalized2_cleaned, cluster_k50 = cluster_k50@cluster)
+sales_normalized_k50_ts <- ts(sales_normalized_k50)
+
+# clustering the data based on cluster k = 100
+sales_normalized_k100 <- mutate(sales_normalized2_cleaned, cluster_k100 = cluster_k100@cluster)
+sales_normalized_k100_ts <- ts(sales_normalized_k10)
+```
+
+Let's look at our clusters. First up, the k = 10 clusters group.
+
+First, let's look at the cluster information.
+
+```{r}
+# Printing group k = 10 clusters
+cluster_k10
+```
+
+Next, let's look at the graphs of the clusters.
+
+```{r}
+# Plotting group k = 10 clusters
+plot(cluster_k10)
+```
+
+Let's look at the group with 25 clusters, starting with the cluster information.
+
+```{r}
+# Printing group k = 25 clusters 
+cluster_k25
+```
+
+Now, the graphs.
+
+```{r}
+# Plotting group k = 25 clusters
+plot(cluster_k25)
+```
+
+And again with group k = 50 clusters
+
+```{r}
+# Printing group k = 50 clusters
+cluster_k50
+```
+
+Now the graphs
+
+```{r}
+# Plotting group k = 50 clusters
+plot(cluster_k50)
+```
+
+Lastly, let's look at group k = 100 clusters.
+
+```{r}
+# Printing group k = 100 clusters
+cluster_k100
+```
+
+And the graphs.
+
+```{r}
+# Plotting group k = 100 clusters
+plot(cluster_k100)
+```
+
+Next, let's analyse the accuracy of these variables. The cvi() function runs several analyses on the clusters in a group and returns several accuracy indices.
+
+If you are running this code, once again, be patient. Each analysis takes about 15 - 20 minutes, so again, in all, it'll take over an hour.
+
+```{r}
+# Analysing the clusters
+cluster_k10_cvi <- cvi(cluster_k10, type = "internal")
+cluster_k25_cvi <- cvi(cluster_k25, type = "internal")
+cluster_k50_cvi <- cvi(cluster_k50, type = "internal")
+cluster_k100_cvi <- cvi(cluster_k100,type = "internal")
+```
+
+Let's look at the accuracy indices of our clusters, starting with group k = 10.
+
+```{r}
+# Running a cluster validity indices analysis
+cluster_k10_cvi
+```
+
+```{r}
+# Running a cluster validity indices analysis
+cluster_k25_cvi
+```
+
+```{r}
+# Running a cluster validity indices analysis
+cluster_k50_cvi
+```
+
+```{r}
+# Running a cluster validity indices analysis
+cluster_k100_cvi
+```
+
+First, let's look at the CH index (Calinski-Harabasz index). This index measures the ration of between cluster dispersion to within cluster dispersion. A higher index indicates better grouping of similar time series and separation of dissimilar time series. In out case, the fewer clusters there are, the better our CH index value. This means that, when there are fewer clusters, those clusters are more accurate overall.
+
+Next, let's look at the DB index (Davies-Bouldin index). This index measures the distance between values within a cluster as a ratio to the distance of points between a cluster and its most similar other cluster. This value is better at analysing how close a cluster is to it's closest neighbor, which is better at ensuring that all of the clusters are "spaced out," instead of having groups of clusters where, overall, all of the clusters are quite different, but there are several clusters that are quite similar. In this case, having less clusters is slightly associated with a better DB index, but in the other test that I ran, this wasn't the case. These values are also quite close. This leads me to believe that, in general, the number of clusters that we make may not have a great impact on the DB index. It seems that luck is more of a determinant.
+
+Now, let's look at some of our individual clusters and products.
+
+```{r}
+# Creating a data set with cluster 2 from group k = 50
+cluster_k50_group2 <- sales_normalized_k50 |> filter(sales_normalized_k50$cluster_k50 == 2)
+```
+
+```{r}
+# Creating a data set with cluster 25 from group k = 50
+cluster_k50_group25 <- sales_normalized_k50 |> filter(sales_normalized_k50$cluster_k50 == 25)
+```
+
+```{r}
+# Creating a data set with cluster 33 from group k = 50
+cluster_k50_group33 <- sales_normalized_k50 |> filter(sales_normalized_k50$cluster_k50 == 33)
+```
+
+Let's graph some of our individual clusters from group k = 50.
+
+```{r}
+# Collecting just the sales values
+cluster_k50_group2 <- cluster_k50_group2[, 1:53]
+cluster_k50_group2 <- transpose(cluster_k50_group2)
+cluster_k50_group2_ts <- ts(cluster_k50_group2)
+
+# Graphing cluster 2 from group k = 50
+ts.plot(cluster_k50_group2_ts, col = 1:7)
+legend("topleft", legend = 1:7, col = 1:7, lty = 1)
+```
+
+It looks like this cluster just has one product. Let's move on to the other clusters.
+
+```{r}
+# Collecting just the sales values
+cluster_k50_group25 <- cluster_k50_group25[, 1:53]
+cluster_k50_group25 <- transpose(cluster_k50_group25)
+
+# Plotting cluster 25 from group k = 25
+ts.plot(cluster_k50_group25, col = 1:6, main = "Adjusted Sales for Cluster 25/50", xlab = "Week", ylab = "Adjusted Sales (min = 0, max = 1,000,000)")
+```
+
+This cluster looks better. In my previous run of the code, this cluster had a distinct decrease in sales in the middle of the year, but this time around, that doesn't seem to be the case.
+
+```{r}
+# Finding a specific product in this cluster that I want to graph
+product_1 <- cluster_k50_group25[, 2]
+
+# Graphing that specific product
+ts.plot(product_1, col = "red")
+```
+
+Once again, on my previous run of the code, this was a different product. It seems that setting the seed hasn't worked. It is possible that set.seed() doesn't have an impact on the tsclust() function. My project is already finished, and redoing it with these new clusters isn't possible, but you can see graphs of the previous clusters and products that I used in my written report and my presentation.
+
+The following code is what I used to find the above product.
+
+```{r}
+# Finding the product
+product_1_search <- bound2 |> filter(week_11 == 1000000)
+product_1_search <- product_1_search |> filter(week_1 > 370000)
+product_1_search <- product_1_search |> filter(week_1 < 380000)
+
+# Printing the product
+product_1_search
+```
+
+This is where I graphed the product.
+
+```{r}
+# Preparing to graph the product
+product_1_raw <- bound |> filter(item_id == 23080)
+product_1_raw <- product_1_raw |> filter(volume == "high")
+product_1_raw_sales <- product_1_raw[, 5:57]
+product_1_raw_sales <- transpose(product_1_raw_sales)
+
+# Graphing the product
+ts.plot(product_1_raw_sales, col = "red", main = "Sales of Flying Dog Double Dog Pale Ale 6 Pack 12 Ounce Beer\nby Cases per Week in the High Volume Store in 2024", xlab = "Week", ylab = "Cases Sold (24 bottles per case)")
+```
+
+Now, let's look at cluster 33 from group k = 50.
+
+```{r}
+# Selecting jsut the sales of the products in this cluster
+cluster_k50_group33 <- cluster_k50_group33[, 1:53]
+cluster_k50_group33 <- transpose(cluster_k50_group33)
+
+# Plotting the cluster
+ts.plot(cluster_k50_group33, col = 1:5, main = "Adjusted Sales for Cluster 33/50", xlab = "Week", ylab = "Adjusted Sales (min = 0, max = 1,000,000)")
+```
+
+In my previous run through the code, this graph showed a cluster that had a distinct increase in sales during the middle of the year.
+
+```{r}
+# Selecting a specific product from the cluster
+product_2 <- cluster_k50_group33[, 2]
+
+# Plotting that product
+ts.plot(product_2, col = "blue")
+```
+
+```{r}
+# Finding that product
+product_2_search <- bound2 |> filter(week_30 == 1000000)
+product_2_search <- product_2_search |> filter(week_1 == 150000)
+
+# Printing that product
+product_2_search
+```
+
+```{r}
+# Preparing to plot the product
+product_2_raw <- bound |> filter(item_id == 296884)
+product_2_raw <- product_2_raw |> filter(volume == "high")
+product_2_raw_sales <- product_2_raw[, 5:57]
+product_2_raw_sales <- transpose(product_2_raw_sales)
+
+# Plotting the product
+ts.plot(product_2_raw_sales, col = "blue", main = "Sales of Veuve Du Vernay Ice Rose (750 mL)\nby Cases per Week in the High Volume Store in 2024", xlab = "Week", ylab = "Cases Sold (12 bottles per case)")
+```
+
+This product demonstrates the increase in sales during the middle of the year (though there is also a spike near the beginning of the year).
+
+Overall, this project was a success. Though I didn't accomplish nearly as much as I had hoped to, I was able to prove that the sales data from ABS can be used to meaningfully cluster the products into accurate groups that can be used to identify sales trends. These groups can be tested in the future to determine how useful they are when compared to the current, single master reordering algorithm used by ABS.
+
+I also proved that features of the clustering process - in this case, the number of clusters - can be optimized to produce more accurate clusters. Much more research is needed even just to find the best number of clusters, and especially to find the optimal clustering method and pre-clustering normalization/standardization. This project acted as a first step, and I hope that others follow in my footsteps and find ways to implement clustering to optimize the ABS reordering process.
+
+Thank you for taking a look at my code. I hope that you both learned something new and had fun while doing it. Good luck with your own data exploration. Remember, the world is full of data just begging to be analysed.
+
+
+
+
